@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # encoding: utf-8
 #
 # Tested on Linux (Ubuntu), Windows XP/7, and Mac OS X
@@ -51,70 +51,71 @@ condition:
         data = open(opts.filename, 'rb').readlines()
         
         if (opts.filename.endswith(".cvd") or opts.filename.endswith(".cld")) and data[0].find("ClamAV") == 0:
-            print "It seems you're passing a compressed database."
-            print "Try using sigtool -u to decompress first."
+            print("It seems you're passing a compressed database.")
+            print("Try using sigtool -u to decompress first.")
             return
         
-        print "[+] Read %d lines from %s" % (len(data), opts.filename)
-
+        print ("[+] Read %d lines from %s" % (len(data), opts.filename))
         # ClamAV signatures are one per line
         for line in data:
                 # signature format is
                 # name:sigtype:offset:signature
                 try:
-                        vals = line.split(':')
+                        vals = line.split(b':')
+
                         if len(vals) < 4 or len(vals) > 6:
-                                print "**ERROR reading ClamAV signature file**"
+                                print("**ERROR reading ClamAV signature file**")
                                 continue                                
                         name = vals[0]
                         sigtype = vals[1]
                         offset = vals[2]
                         signature = vals[3]
                 except:
-                        print "**ERROR reading ClamAV signature file**"
+                        print("**ERROR reading ClamAV signature file**")
                         continue
                 # if specified, only parse rules that match a search criteria
-                if opts.search in name:
+
+                if opts.search.encode() in name:
                         
                         # sanitize rule name for YARA compatability
                         # YARA does not allow non-alphanumeric chars besides _
-                        rulename_regex = re.compile('(\W)')
-                        rulename = rulename_regex.sub('_', name)
+                        rulename_regex = re.compile(b'(\W)')
+                        rulename = rulename_regex.sub(b'_', name)
 
                         # and cannot start with a number
-                        rulename_regex = re.compile('(^[0-9]{1,})')
-                        rulename = rulename_regex.sub('', rulename)
+                        rulename_regex = re.compile(b'(^[0-9]{1,})')
+                        rulename = rulename_regex.sub(b'', rulename)
 
                         # if the rule doesn't exist, create a dict entry                        
                         if rulename not in rules:
-                                rules[rulename] = []
+                                rules[rulename.decode()] = []
                         
                         # handle the ClamAV style jumps
                         # {-n} is n or less bytes
-                        jump_regex = re.compile('(\{-(\d+)\})')
-                        signature = jump_regex.sub('{0-\g<2>}', signature)      
+                        jump_regex = re.compile(b'(\{-(\d+)\})')
+                        signature = jump_regex.sub(b'{0-\g<2>}', signature)      
 
                         # {n-} is n or more bytes
-                        jump_regex = re.compile('(\{(\d+)-\})')
+                        jump_regex = re.compile(b'(\{(\d+)-\})')
                         matches = jump_regex.findall(signature)
 
                         if matches:
                                 for match in matches:
                                         #print "\t\tfound %s" % (match[1])
                                         start = int(match[1])
-                                        jump_regex = re.compile('(\{(%d)-\})' % (start))
+                                        jump_regex = re.compile(b'(\{(%d)-\})' % (start))
                                         if (start < 256):
                                                 #print "\t\t\tfound short jump of len %d" % (start)
-                                                signature = jump_regex.sub('[0-\g<2>]', signature)
+                                                signature = jump_regex.sub(b'[0-\g<2>]', signature)
                                         else:
                                                 #print "\t\t\tfound long jump, replacing with '*'"
-                                                signature = jump_regex.sub('*', signature)
+                                                signature = jump_regex.sub(b'*', signature)
 
                         # {n-m} is n to m bytes
                         # need to make sure it's not bigger than 255, 
                         # and the high bound cannot exceed 255
                         # if it is we'll treat it like a '*'
-                        jump_regex = re.compile('(\{(\d+)-(\d+)\})')
+                        jump_regex = re.compile(b'(\{(\d+)-(\d+)\})')
                         matches = jump_regex.findall(signature)
 
                         if matches:
@@ -122,45 +123,45 @@ condition:
                                         #print "\t\tfound %s - %s" % (match[1], match[2])
                                         start = int(match[1])
                                         end = int(match[2])
-                                        jump_regex = re.compile('(\{(%d)-(%d)\})' % (start, end))
+                                        jump_regex = re.compile(b'(\{(%d)-(%d)\})' % (start, end))
                                         if (end - start == 0):
                                                 if opts.verbose:
-                                                        print "\t**Skip nothing, impossible!**"
+                                                        print("\t**Skip nothing, impossible!**")
                                                 signature = jump_regex.sub('', signature)
                                         elif (end - start < 256) and (end < 256):
                                                 #print "\t\t\tfound short jump of len %d" % (end - start)
-                                                signature = jump_regex.sub('[\g<2>-\g<3>]', signature)
+                                                signature = jump_regex.sub(b'[\g<2>-\g<3>]', signature)
                                         else:
                                                 #print "\t\t\tfound long jump, replacing with '*'"
-                                                signature = jump_regex.sub('*', signature)
+                                                signature = jump_regex.sub(b'*', signature)
 
                         # {n} bytes
                         # here we must also enforce the 255 byte maximum jump 
                         # that YARA can handle
-                        jump_regex = re.compile('(\{(\d+)\})')
+                        jump_regex = re.compile(b'(\{(\d+)\})')
                         matches = jump_regex.findall(signature)
 
                         if matches:
                                 for match in matches:
                                         #print "\t\tfound %s" % (match[1])
                                         start = int(match[1])
-                                        jump_regex = re.compile('(\{(%d)\})' % (start))
+                                        jump_regex = re.compile(b'(\{(%d)\})' % (start))
                                         if start < 256:
                                                 #print "\t\t\tfound short jump of len %d" % (start)
-                                                signature = jump_regex.sub('[\g<2>]', signature)
+                                                signature = jump_regex.sub(b'[\g<2>]', signature)
                                         else:
                                                 #print "\t\t\tfound long jump, replacing with '*'"
-                                                signature = jump_regex.sub('*', signature)
+                                                signature = jump_regex.sub(b'*', signature)
                         
                         # translate the '*' operator into a pair of signatures
                         # with an 'and'
-                        if '*' in signature:
-                                for part in signature.split('*'):
+                        if b'*' in signature:
+                                for part in signature.split(b'*'):
                                         if part[0] != '(':
-                                                rules[rulename].append(part.strip())
+                                                rules[rulename.decode()].append(part.strip().decode())
                         else:
                                 if signature[0] != '(':
-                                        rules[rulename].append(signature.strip())
+                                        rules[rulename.decode()].append(signature.strip().decode())
 
         for rule in rules.keys():
                         detects = ''
@@ -174,22 +175,22 @@ condition:
                                 x += 1
                         if detects == '':
                                 if opts.verbose:
-                                        print "\t**Found empty rule %s, skipping**" % rule
+                                        print("\t**Found empty rule %s, skipping**" % rule)
                                 continue
                         else:
                                 output += yara_rule % (rule, detects, conds)
                         
         if len(output) > 0:
-                print "\r\n[+] Wrote %d rules to %s\r\n" % (len(rules), opts.outfile)
-                fout = open(opts.outfile, 'wb')
+                print("\r\n[+] Wrote %d rules to %s\r\n" % (len(rules), opts.outfile))
+                fout = open(opts.outfile, 'w')
                 fout.write(output)
                 fout.close()
         else:
-                print "\r\n**Could not find any signatures to convert!!!**\r\n"
+                print("\r\n**Could not find any signatures to convert!!!**\r\n")
 
 if __name__ == '__main__':
-        print "\n" + '#' * 75
-        print "\t" + "Malware Analyst's Cookbook - ClamAV to YARA Converter 0.0.1"
-        print "\n" + '#' * 75, "\n"     
+        print("\n" + '#' * 75)
+        print("\t" + "Malware Analyst's Cookbook - ClamAV to YARA Converter 0.0.1")
+        print("\n" + '#' * 75, "\n")
 
         main()
